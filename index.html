@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>calibration</title>
+
+  <meta property="og:title" content="calibration">
+  <meta property="og:description" content="hold to calibrate">
+  <meta property="og:image" content="preview.png">
+  <meta property="og:type" content="website">
+
+  <style>
+    :root{
+      --bg:#050505;
+      --fg:#f4f4f4;
+      --muted:#a3a3a3;
+      --blue:#00b7ff;
+      --indigo:#2141ff;
+      --lime:#72ff4f;
+      --orange:#ff8b1f;
+      --pink:#ff2f92;
+      --red:#ff3040;
+      --grid:rgba(255,255,255,.035);
+      --grain:rgba(255,255,255,.05);
+      --dot:#ffffff;
+    }
+
+    *{
+      box-sizing:border-box;
+      -webkit-tap-highlight-color:transparent;
+      user-select:none;
+    }
+
+    html,body{
+      margin:0;
+      width:100%;
+      height:100%;
+      overflow:hidden;
+      background:#050505;
+      color:var(--fg);
+      font-family:"Helvetica Neue", Helvetica, Arial, sans-serif;
+      cursor:crosshair;
+    }
+
+    body{
+      background:
+        radial-gradient(circle at 50% 50%, rgba(255,255,255,.035) 0%, rgba(255,255,255,0) 26%),
+        #050505;
+      transition:background .28s ease;
+    }
+
+    #screen{
+      position:relative;
+      width:100vw;
+      height:100vh;
+      overflow:hidden;
+    }
+
+    .grid{
+      position:absolute;
+      inset:0;
+      background-image:
+        linear-gradient(var(--grid) 1px, transparent 1px),
+        linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+      background-size: 44px 44px;
+      opacity:.8;
+      pointer-events:none;
+    }
+
+    .grain{
+      position:absolute;
+      inset:0;
+      opacity:.16;
+      background-image:
+        repeating-linear-gradient(
+          0deg,
+          var(--grain) 0px,
+          var(--grain) 1px,
+          transparent 1px,
+          transparent 2px
+        ),
+        repeating-linear-gradient(
+          90deg,
+          rgba(255,255,255,.02) 0px,
+          rgba(255,255,255,.02) 1px,
+          transparent 1px,
+          transparent 2px
+        );
+      mix-blend-mode:screen;
+      pointer-events:none;
+    }
+
+    .wrap{
+      position:absolute;
+      inset:0;
+      display:grid;
+      place-items:center;
+      z-index:2;
+    }
+
+    .stack{
+      width:min(760px, calc(100vw - 40px));
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      gap:22px;
+      text-align:center;
+    }
+
+    .kicker{
+      font-size:.8rem;
+      letter-spacing:.38em;
+      text-transform:uppercase;
+      color:#d9d9d9;
+      font-weight:700;
+      opacity:.9;
+    }
+
+    .field{
+      position:relative;
+      width:min(60vw, 420px);
+      aspect-ratio:1/1;
+      display:grid;
+      place-items:center;
+    }
+
+    .ring{
+      position:absolute;
+      border-radius:50%;
+      border:1px solid rgba(255,255,255,.12);
+      transition:
+        transform .2s ease,
+        border-color .2s ease,
+        box-shadow .2s ease,
+        opacity .2s ease;
+      mix-blend-mode:screen;
+    }
+
+    .r1{ inset:0; }
+    .r2{ inset:12%; }
+    .r3{ inset:24%; }
+    .r4{ inset:36%; }
+
+    .core{
+      position:absolute;
+      width:14%;
+      aspect-ratio:1/1;
+      border-radius:50%;
+      background:#fff;
+      box-shadow:
+        0 0 0 2px rgba(255,255,255,.12),
+        0 0 18px rgba(255,255,255,.5);
+      transition:
+        transform .18s ease,
+        background .18s ease,
+        box-shadow .18s ease,
+        filter .18s ease;
+    }
+
+    .satellite{
+      position:absolute;
+      width:12px;
+      height:12px;
+      border-radius:50%;
+      background:var(--dot);
+      box-shadow:0 0 18px currentColor;
+      opacity:.9;
+      transition:transform .18s ease, opacity .18s ease, background .18s ease;
+    }
+
+    .s1{ top:12%; left:50%; transform:translate(-50%,-50%); }
+    .s2{ top:50%; right:12%; transform:translate(50%,-50%); }
+    .s3{ bottom:12%; left:50%; transform:translate(-50%,50%); }
+    .s4{ top:50%; left:12%; transform:translate(-50%,-50%); }
+
+    .message{
+      font-size:clamp(1.2rem, 2vw, 1.55rem);
+      font-weight:600;
+      letter-spacing:.015em;
+      line-height:1.18;
+      min-height:2.4em;
+      max-width:600px;
+      text-wrap:balance;
+    }
+
+    .sub{
+      font-size:1rem;
+      line-height:1.35;
+      min-height:2.7em;
+      color:var(--muted);
+      max-width:540px;
+      opacity:.95;
+    }
+
+    .sig{
+      position:fixed;
+      left:50%;
+      bottom:18px;
+      transform:translateX(-50%);
+      color:#9d9d9d;
+      font-size:.92rem;
+      z-index:3;
+    }
+
+    .pulse{
+      position:absolute;
+      width:18px;
+      height:18px;
+      border-radius:50%;
+      border:2px solid currentColor;
+      transform:translate(-50%,-50%);
+      animation:pulseOut 1.2s ease-out forwards;
+      pointer-events:none;
+      z-index:1;
+      mix-blend-mode:screen;
+    }
+
+    .spark{
+      position:absolute;
+      width:10px;
+      height:10px;
+      border-radius:50%;
+      transform:translate(-50%,-50%);
+      pointer-events:none;
+      z-index:1;
+      animation:sparkOut 1.4s ease-out forwards;
+      box-shadow:0 0 26px currentColor;
+      mix-blend-mode:screen;
+    }
+
+    .trace{
+      position:absolute;
+      width:6px;
+      height:6px;
+      border-radius:50%;
+      transform:translate(-50%,-50%);
+      pointer-events:none;
+      animation:fadeTrace 1s linear forwards;
+      z-index:1;
+      box-shadow:0 0 16px currentColor;
+      mix-blend-mode:screen;
+    }
+
+    body.active .r1{ transform:scale(1.04); }
+    body.active .r2{ transform:scale(.985); }
+    body.active .r3{ transform:scale(.95); }
+    body.active .r4{ transform:scale(.92); }
+    body.active .core{ transform:scale(1.18); }
+
+    @keyframes pulseOut{
+      0%{opacity:.95;transform:translate(-50%,-50%) scale(.2)}
+      100%{opacity:0;transform:translate(-50%,-50%) scale(24)}
+    }
+
+    @keyframes sparkOut{
+      0%{opacity:1;transform:translate(-50%,-50%) scale(.25)}
+      100%{opacity:0;transform:translate(var(--x), var(--y)) scale(1.8)}
+    }
+
+    @keyframes fadeTrace{
+      0%{opacity:.98}
+      100%{opacity:0}
+    }
+  </style>
+</head>
+<body>
+  <main id="screen">
+    <div class="grid"></div>
+    <div class="grain"></div>
+
+    <div class="wrap">
+      <div class="stack">
+        <div class="kicker">calibration</div>
+
+        <div class="field" id="field" aria-hidden="true">
+          <div class="ring r1"></div>
+          <div class="ring r2"></div>
+          <div class="ring r3"></div>
+          <div class="ring r4"></div>
+
+          <div class="satellite s1"></div>
+          <div class="satellite s2"></div>
+          <div class="satellite s3"></div>
+          <div class="satellite s4"></div>
+
+          <div class="core" id="core"></div>
+        </div>
+
+        <div class="message" id="message">hold to calibrate</div>
+        <div class="sub" id="sub">short contact produces noise<br>longer contact reveals more.</div>
+      </div>
+    </div>
+
+    <div class="sig">♡ taylor</div>
+  </main>
+
+  <script>
+    const screen = document.getElementById('screen');
+    const field = document.getElementById('field');
+    const core = document.getElementById('core');
+    const message = document.getElementById('message');
+    const sub = document.getElementById('sub');
+    const rings = [...document.querySelectorAll('.ring')];
+    const satellites = [...document.querySelectorAll('.satellite')];
+
+    const PROGRESS_STATES = [
+      { t: 0,    m: 'hold to calibrate',      s: 'short contact produces noise<br>longer contact reveals more.' },
+      { t: 1100, m: 'sampling',               s: 'do not rush.' },
+      { t: 2300, m: 'reading pressure',       s: 'steady input improves signal quality.' },
+      { t: 3700, m: 'signal forming',         s: 'visual field expanding.' },
+      { t: 5400, m: 'stabilizing',            s: 'hold position.' },
+      { t: 7200, m: 'locked',                 s: 'release when ready.' }
+    ];
+
+    const OUTCOMES = [
+      ['noise', 'insufficient hold time.'],
+      ['partial read', 'not enough time under pressure.'],
+      ['signal drift', 'movement exceeded tolerance.'],
+      ['clean signal', 'response profile retained.'],
+      ['stable', 'that worked better.'],
+      ['high confidence', 'system trusts the reading.'],
+      ['field match', 'surface and intent aligned.'],
+      ['interesting restraint', 'system noticed.'],
+      ['elevated response', 'contact pattern above average.'],
+      ['soft lock', 'calibration accepted.'],
+      ['overclocked', 'you held longer than expected.'],
+      ['echo retained', 'trace memory recorded.'],
+      ['signal bloom', 'response expanded outward.'],
+      ['measured', 'pressure signature consistent.'],
+      ['clean entry', 'minimal noise detected.'],
+      ['quiet force', 'output stronger than appearance.'],
+      ['waveform retained', 'release registered cleanly.'],
+      ['favorable read', 'system confidence: rising.'],
+      ['anomaly logged', 'unusual but not unwelcome.'],
+      ['accurate enough', 'repeatable under pressure.'],
+      ['sustained', 'that one landed.'],
+      ['rare stability', 'not everyone gets that result.'],
+      ['locked', 'release acknowledged.'],
+      ['good control', 'calibration accepted.'],
+      ['responsive field', 'the screen liked that.']
+    ];
+
+    const PALETTES = [
+      ['#ffffff','#d9d9d9','#8a8a8a','#2b2b2b'],
+      ['#00c2ff','#005eff','#001aff','#000000'],
+      ['#ff3d00','#ff8800','#ffd000','#000000'],
+      ['#00ff85','#00b85c','#006b3a','#000000'],
+      ['#ff0066','#cc0052','#66002a','#000000']
+    ];
+
+    let isHolding = false;
+    let holdStart = 0;
+    let holdRAF = null;
+    let lastTrace = 0;
+    let pointerX = window.innerWidth / 2;
+    let pointerY = window.innerHeight / 2;
+    let moveDistance = 0;
+    let lastX = pointerX;
+    let lastY = pointerY;
+    let pulseTimer = 0;
+    let sparkTimer = 0;
+
+    function setState(ms){
+      let current = PROGRESS_STATES[0];
+      for (const state of PROGRESS_STATES) {
+        if (ms >= state.t) current = state;
+      }
+      message.textContent = current.m;
+      sub.innerHTML = current.s;
+    }
+
+    function pickOutcome(duration, moved){
+      let pool = [];
+      if (duration < 900) pool = OUTCOMES.slice(0, 3);
+      else if (duration < 2400) pool = OUTCOMES.slice(3, 10);
+      else if (duration < 4600) pool = OUTCOMES.slice(8, 18);
+      else pool = OUTCOMES.slice(14, 25);
+      if (moved > 300) pool = [OUTCOMES[2], OUTCOMES[18], OUTCOMES[24], ...pool];
+      return pool[Math.floor(Math.random() * pool.length)];
+    }
+
+    function applyVisuals(progress){
+      const paletteIndex = Math.min(PALETTES.length - 1, Math.floor(progress * PALETTES.length));
+      const palette = PALETTES[paletteIndex];
+      const [a,b,c,d] = palette;
+
+      document.body.style.background =
+        `radial-gradient(circle at 50% 50%, ${a}18 0%, ${b}10 16%, rgba(255,255,255,0) 30%), #050505`;
+
+      core.style.background = `radial-gradient(circle at 35% 30%, #ffffff 0%, ${a} 18%, ${b} 40%, ${c} 62%, #111111 100%)`;
+      core.style.boxShadow = `
+        0 0 0 2px rgba(255,255,255,.12),
+        0 0 ${22 + progress * 36}px ${a}99,
+        0 0 ${64 + progress * 120}px ${b}55
+      `;
+
+      rings[0].style.borderColor = `${a}55`;
+      rings[1].style.borderColor = `${b}66`;
+      rings[2].style.borderColor = `${c}66`;
+      rings[3].style.borderColor = `${a}44`;
+
+      rings[0].style.boxShadow = `0 0 ${10 + progress * 30}px ${a}22`;
+      rings[1].style.boxShadow = `0 0 ${10 + progress * 24}px ${b}22`;
+      rings[2].style.boxShadow = `0 0 ${10 + progress * 20}px ${c}22`;
+      rings[3].style.boxShadow = `0 0 ${10 + progress * 16}px ${a}14`;
+
+      satellites[0].style.color = a;
+      satellites[1].style.color = b;
+      satellites[2].style.color = c;
+      satellites[3].style.color = a;
+
+      satellites[0].style.background = a;
+      satellites[1].style.background = b;
+      satellites[2].style.background = c;
+      satellites[3].style.background = a;
+
+      const offset = 10 + progress * 28;
+      satellites[0].style.transform = `translate(-50%, calc(-50% - ${offset}px))`;
+      satellites[1].style.transform = `translate(calc(50% + ${offset}px), -50%)`;
+      satellites[2].style.transform = `translate(-50%, calc(50% + ${offset}px))`;
+      satellites[3].style.transform = `translate(calc(-50% - ${offset}px), -50%)`;
+
+      satellites.forEach((s, i) => {
+        s.style.opacity = 0.6 + progress * 0.4;
+        s.style.boxShadow = `0 0 ${12 + progress * 18}px ${s.style.color}`;
+      });
+    }
+
+    function pulse(x, y, color, scale = 1){
+      const p = document.createElement('div');
+      p.className = 'pulse';
+      p.style.left = x + 'px';
+      p.style.top = y + 'px';
+      p.style.color = color;
+      p.style.transform = `translate(-50%,-50%) scale(${scale})`;
+      screen.appendChild(p);
+      setTimeout(() => p.remove(), 1200);
+    }
+
+    function sparkBurst(x, y, palette, intensity = 0.5){
+      const count = Math.floor(8 + intensity * 22);
+      for (let i = 0; i < count; i++){
+        const s = document.createElement('div');
+        s.className = 'spark';
+        s.style.left = x + 'px';
+        s.style.top = y + 'px';
+        s.style.color = palette[i % palette.length];
+        s.style.background = palette[i % palette.length];
+        s.style.setProperty('--x', `${(Math.random() * 2 - 1) * (70 + intensity * 190)}px`);
+        s.style.setProperty('--y', `${(Math.random() * 2 - 1) * (70 + intensity * 190)}px`);
+        screen.appendChild(s);
+        setTimeout(() => s.remove(), 1400);
+      }
+    }
+
+    function trace(x, y, color){
+      const t = document.createElement('div');
+      t.className = 'trace';
+      t.style.left = x + 'px';
+      t.style.top = y + 'px';
+      t.style.color = color;
+      t.style.background = color;
+      screen.appendChild(t);
+      setTimeout(() => t.remove(), 1000);
+    }
+
+    function currentPalette(progress){
+      return PALETTES[Math.min(PALETTES.length - 1, Math.floor(progress * PALETTES.length))];
+    }
+
+    function tick(now){
+      if (!isHolding) return;
+
+      const elapsed = now - holdStart;
+      const progress = Math.min(elapsed / 7200, 1);
+      const palette = currentPalette(progress);
+
+      setState(elapsed);
+      applyVisuals(progress);
+
+      if (now - pulseTimer > 760){
+        pulse(pointerX, pointerY, palette[0], 1 + progress * 0.35);
+        pulseTimer = now;
+      }
+
+      if (now - sparkTimer > 520){
+        sparkBurst(pointerX, pointerY, palette, 0.22 + progress * 0.78);
+        sparkTimer = now;
+      }
+
+      holdRAF = requestAnimationFrame(tick);
+    }
+
+    function beginHold(e){
+      if (isHolding) return;
+      isHolding = true;
+      holdStart = performance.now();
+      pointerX = e.clientX;
+      pointerY = e.clientY;
+      lastX = e.clientX;
+      lastY = e.clientY;
+      moveDistance = 0;
+      pulseTimer = 0;
+      sparkTimer = 0;
+
+      document.body.classList.add('active');
+      setState(0);
+      applyVisuals(0);
+      pulse(pointerX, pointerY, '#ffffff', 1);
+      holdRAF = requestAnimationFrame(tick);
+    }
+
+    function moveHold(e){
+      if (!isHolding) return;
+
+      pointerX = e.clientX;
+      pointerY = e.clientY;
+      moveDistance += Math.hypot(e.clientX - lastX, e.clientY - lastY);
+      lastX = e.clientX;
+      lastY = e.clientY;
+
+      const progress = Math.min((performance.now() - holdStart) / 7200, 1);
+      const palette = currentPalette(progress);
+
+      if (performance.now() - lastTrace > 46){
+        trace(e.clientX, e.clientY, palette[1]);
+        lastTrace = performance.now();
+      }
+    }
+
+    function endHold(){
+      if (!isHolding) return;
+
+      const duration = performance.now() - holdStart;
+      const result = pickOutcome(duration, moveDistance);
+      const progress = Math.min(duration / 7200, 1);
+      const palette = currentPalette(progress);
+
+      isHolding = false;
+      cancelAnimationFrame(holdRAF);
+      document.body.classList.remove('active');
+
+      applyVisuals(progress);
+      message.textContent = result[0];
+      sub.textContent = result[1];
+
+      pulse(pointerX, pointerY, palette[0], 1.25);
+      sparkBurst(pointerX, pointerY, palette, 0.6 + progress * 0.8);
+    }
+
+    screen.addEventListener('pointerdown', (e) => {
+      beginHold(e);
+      screen.setPointerCapture(e.pointerId);
+    });
+
+    screen.addEventListener('pointermove', moveHold);
+    screen.addEventListener('pointerup', endHold);
+    screen.addEventListener('pointercancel', endHold);
+
+    applyVisuals(0);
+  </script>
+</body>
+</html>
